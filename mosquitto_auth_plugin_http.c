@@ -12,6 +12,7 @@
 
 static char *http_user_uri = NULL;
 static char *http_acl_uri = NULL;
+static int   http_acl_pass = 0;
 
 int mosquitto_auth_plugin_version(void) {
   return MOSQ_AUTH_PLUGIN_VERSION;
@@ -29,6 +30,11 @@ int mosquitto_auth_plugin_init(void **user_data, struct mosquitto_auth_opt *auth
     if (strncmp(auth_opts[i].key, "http_acl_uri", 12) == 0) {
       http_acl_uri = auth_opts[i].value;
     }
+    if (strncmp(auth_opts[i].key, "http_acl_pass", 13) == 0) {
+      if (strncmp(auth_opts[i].value, "true", 4) == 0) {
+        http_acl_pass = 1;
+      }
+    }
   }
   if (http_user_uri == NULL) {
     http_user_uri = DEFAULT_USER_URI;
@@ -36,9 +42,9 @@ int mosquitto_auth_plugin_init(void **user_data, struct mosquitto_auth_opt *auth
   if (http_acl_uri == NULL) {
     http_acl_uri = DEFAULT_ACL_URI;
   }
-  mosquitto_log_printf(MOSQ_LOG_INFO, "http_user_uri = %s, http_acl_uri = %s", http_user_uri, http_acl_uri);
+  mosquitto_log_printf(MOSQ_LOG_INFO, "http_user_uri = %s, http_acl_uri = %s, http_acl_pass = %d", http_user_uri, http_acl_uri, http_acl_pass);
 #ifdef MQAP_DEBUG
-    fprintf(stderr, "http_user_uri = %s, http_acl_uri = %s\n", http_user_uri, http_acl_uri);
+    fprintf(stderr, "http_user_uri = %s, http_acl_uri = %s, http_acl_pass = %d\n", http_user_uri, http_acl_uri, http_acl_pass);
 #endif
   return MOSQ_ERR_SUCCESS;
 }
@@ -129,6 +135,10 @@ int mosquitto_auth_acl_check(void *user_data, const char *clientid, const char *
   if (username == NULL) {
     // If the username is NULL then it's an anonymous user, currently we let
     // this pass assuming the admin will disable anonymous users if required.
+    return MOSQ_ERR_SUCCESS;
+  }
+
+  if(http_acl_pass == 1) {
     return MOSQ_ERR_SUCCESS;
   }
 
