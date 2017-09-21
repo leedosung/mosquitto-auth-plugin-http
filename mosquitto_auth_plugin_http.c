@@ -7,11 +7,10 @@
 #include <mosquitto.h>
 #include <mosquitto_plugin.h>
 
-#define DEFAULT_USER_URI "http://localhost:5000/mqtt-user"
-#define DEFAULT_ACL_URI "http://localhost:5000/mqtt-acl"
+#define URL_MAX_LEN 512
 
-static char *http_user_uri = NULL;
-static char *http_acl_uri = NULL;
+static char  http_user_uri[URL_MAX_LEN] = "http://127.0.0.1:3000/auths/user";
+static char  http_acl_uri[URL_MAX_LEN] = "http://127.0.0.1:3000/auths/acl";
 static int   http_acl_pass = 0;
 
 int mosquitto_auth_plugin_version(void) {
@@ -19,33 +18,6 @@ int mosquitto_auth_plugin_version(void) {
 }
 
 int mosquitto_auth_plugin_init(void **user_data, struct mosquitto_auth_opt *auth_opts, int auth_opt_count) {
-  int i = 0;
-  for (i = 0; i < auth_opt_count; i++) {
-#ifdef MQAP_DEBUG
-    fprintf(stderr, "AuthOptions: key=%s, val=%s\n", auth_opts[i].key, auth_opts[i].value);
-#endif
-    if (strncmp(auth_opts[i].key, "http_user_uri", 13) == 0) {
-      http_user_uri = auth_opts[i].value;
-    }
-    if (strncmp(auth_opts[i].key, "http_acl_uri", 12) == 0) {
-      http_acl_uri = auth_opts[i].value;
-    }
-    if (strncmp(auth_opts[i].key, "http_acl_pass", 13) == 0) {
-      if (strncmp(auth_opts[i].value, "true", 4) == 0) {
-        http_acl_pass = 1;
-      }
-    }
-  }
-  if (http_user_uri == NULL) {
-    http_user_uri = DEFAULT_USER_URI;
-  }
-  if (http_acl_uri == NULL) {
-    http_acl_uri = DEFAULT_ACL_URI;
-  }
-  mosquitto_log_printf(MOSQ_LOG_INFO, "http_user_uri = %s, http_acl_uri = %s, http_acl_pass = %d", http_user_uri, http_acl_uri, http_acl_pass);
-#ifdef MQAP_DEBUG
-    fprintf(stderr, "http_user_uri = %s, http_acl_uri = %s, http_acl_pass = %d\n", http_user_uri, http_acl_uri, http_acl_pass);
-#endif
   return MOSQ_ERR_SUCCESS;
 }
 
@@ -54,10 +26,34 @@ int mosquitto_auth_plugin_cleanup(void *user_data, struct mosquitto_auth_opt *au
 }
 
 int mosquitto_auth_security_init(void *user_data, struct mosquitto_auth_opt *auth_opts, int auth_opt_count, bool reload) {
+
+  int i = 0;
+  for (i = 0; i < auth_opt_count; i++) {
+#ifdef MQAP_DEBUG
+    fprintf(stderr, "AuthOptions: key=%s, val=%s\n", auth_opts[i].key, auth_opts[i].value);
+#endif
+    if (strncmp(auth_opts[i].key, "http_user_uri", 13) == 0) {
+	  snprintf(http_user_uri, sizeof(http_user_uri), "%s", auth_opts[i].value);
+    }
+    if (strncmp(auth_opts[i].key, "http_acl_uri", 12) == 0) {
+	  snprintf(http_acl_uri, sizeof(http_acl_uri), "%s", auth_opts[i].value);
+    }
+    if (strncmp(auth_opts[i].key, "http_acl_pass", 13) == 0) {
+      if (strncmp(auth_opts[i].value, "true", 4) == 0) {
+        http_acl_pass = 1;
+      }
+    }
+  }
+
+  mosquitto_log_printf(MOSQ_LOG_INFO, "http_user_uri = %s, http_acl_uri = %s, http_acl_pass = %d", http_user_uri, http_acl_uri, http_acl_pass);
+#ifdef MQAP_DEBUG
+    fprintf(stderr, "http_user_uri = %s, http_acl_uri = %s, http_acl_pass = %d\n", http_user_uri, http_acl_uri, http_acl_pass);
+#endif
   return MOSQ_ERR_SUCCESS;
 }
 
 int mosquitto_auth_security_cleanup(void *user_data, struct mosquitto_auth_opt *auth_opts, int auth_opt_count, bool reload) {
+  mosquitto_log_printf(MOSQ_LOG_INFO, "security cleanup http_user_uri = %s, http_acl_uri = %s, http_acl_pass = %d", http_user_uri, http_acl_uri, http_acl_pass);
   return MOSQ_ERR_SUCCESS;
 }
 
@@ -98,6 +94,8 @@ int mosquitto_auth_unpwd_check(void *user_data, const char *username, const char
 	memset(data, 0, data_len);
   	snprintf(data, data_len, "username=%s&password=%s", escaped_username, escaped_password);
 
+	curl_easy_setopt(ch, CURLOPT_VERBOSE, 0L);
+	//curl_easy_setopt(ch, CURLOPT_NOBODY, 1);
   	curl_easy_setopt(ch, CURLOPT_POST, 1L);
   	curl_easy_setopt(ch, CURLOPT_URL, http_user_uri);
   	curl_easy_setopt(ch, CURLOPT_POSTFIELDS, data);
